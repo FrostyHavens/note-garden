@@ -8,7 +8,6 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 NG.$ = $; NG.$$ = $$;
 NG.pick = arr => arr[Math.floor(Math.random() * arr.length)];
 NG.shuffle = arr => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-NG.PRAISE = ['Yes!', 'Lovely!', 'You got it!', 'Nice one!', 'Super!', 'Tweet tweet!', 'Beautiful!', 'Wonderful!'];
 
 /* ================= progress ================= */
 const STORE = 'noteGarden.v2';
@@ -39,12 +38,6 @@ NG.recordResult = (l, ok) => {
   save(); return faded;
 };
 NG.bumpHint = l => { const s = NG.stat(l); s.hint = Math.min(3, s.hint + 1); s.streak = 0; save(); };
-NG.fadeMessage = l => {
-  const h = NG.stat(l).hint;
-  return h === 2 ? `You know where ${l} is on the piano now. No more glowing key!`
-       : h === 1 ? `You know ${l} by heart! Its letter is hiding now. Can you still find it?`
-       : `Wow! ${l} is a plain black note now, just like real sheet music.`;
-};
 
 /* ================= the path ================= */
 const LESSONS = NG.LEVEL1.flatMap((u, ui) => u.lessons.map((l, li) => Object.assign(l, {unit:u, ui, li})));
@@ -123,7 +116,8 @@ NG.showResult = (stage, r) => {
   ov.addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b) acts[+b.dataset.a].fn(); });
   stage.append(ov);
   if (r.stars) setTimeout(A.fanfare, 250);
-  A.say(r.title + ' ' + (r.text || '') + ' ' + (r.note || ''));
+  // Numbers stay on screen; Pip says the title and the advice.
+  A.say([r.title, r.note || '']);
   if (NG.updateMapBadge) NG.updateMapBadge();
 };
 

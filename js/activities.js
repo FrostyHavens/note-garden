@@ -11,6 +11,20 @@ const wobble = g => { if (!g) return; g.classList.remove('wobble'); void g.getBB
 const clearOverlay = stage => $$('.finish', stage).forEach(o => o.remove());
 // On narrow screens, one bar per line on a narrower staff keeps notes big enough to read.
 NG.narrowLayout = stage => stage.clientWidth && stage.clientWidth < 560 ? {perLine:1, width:430} : {};
+// Shared phrases. Everything Pip says aloud is built from these and the lesson texts, so it can be pre-recorded.
+NG.PRAISE = ['Yes!', 'Lovely!', 'You got it!', 'Nice one!', 'Super!', 'Tweet tweet!', 'Beautiful!', 'Wonderful!'];
+NG.fadeMessage = l => {
+  const h = NG.stat(l).hint;
+  return h === 2 ? `You know where ${l} is on the piano now. No more glowing key!`
+       : h === 1 ? `You know ${l} by heart! Its letter is hiding now. Can you still find it?`
+       : `Wow! ${l} is a plain black note now, just like real sheet music.`;
+};
+NG.helperFor = t => {
+  const h = NG.stat(t.letter).hint;
+  if (h >= 2) return `Look for the ${COLOR_NAME[t.letter]} ${t.letter}.`;
+  if (h === 1) return `It's the ${COLOR_NAME[t.letter]} note.`;
+  return `It sits ${WHERE[t.step]}.`;
+};
 const noteAtStep = step => parseNote(LETTERS[((step % 7) + 7) % 7] + (4 + Math.floor(step / 7)));
 
 function plantFlower(garden, l){
@@ -78,12 +92,7 @@ function songActivity(stage, def, lesson, o = {}){
     bird.classList.remove('hop'); void bird.offsetWidth; bird.classList.add('hop');
     if (scroll) svg.scrollIntoView({block:'nearest', behavior:'smooth'});
   }
-  function helperFor(t){
-    const h = NG.stat(t.letter).hint;
-    if (h >= 2) return `Look for the ${COLOR_NAME[t.letter]} ${t.letter}.`;
-    if (h === 1) return `It's the ${COLOR_NAME[t.letter]} note.`;
-    return `It sits ${WHERE[t.step]}.`;
-  }
+  const helperFor = NG.helperFor;
   function setModeButtons(){
     $$('[data-mode]', stage).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
     const bb = $('[data-mode="beat"]', stage);

@@ -63,7 +63,7 @@ function echoInput(d){
 function finish(){
   EB.running = false; NG.keys.clear(); dots(); EB.target = null; showNote('hidden');
   msg(`You echoed ${EB.score} of ${ROUNDS} notes on the first try!`);
-  A.say(`You echoed ${EB.score} of ${ROUNDS} notes on the first try!`);
+  A.say('Great listening! That was the last note.');
   $('#echoStart').textContent = 'Play again'; $('#echoReplay').disabled = true;
   setTimeout(A.fanfare, 200);
 }
@@ -170,7 +170,7 @@ function input(d){
     const escaped = BP.escaped;
     stop(); setTimeout(A.fanfare, 200);
     const text = `You popped ${GOAL} bubbles${escaped ? ` and only ${escaped} got away` : ' and none got away'}! Next time starts a little ${escaped < 3 ? 'faster' : 'gentler'}.`;
-    $('#bpMsg').textContent = text; A.say(text);
+    $('#bpMsg').textContent = text; A.say('You popped all the bubbles!');
     $('#arenaStart').hidden = false; $('#bubblesStart').textContent = 'Pop again'; $('#bubblesFocus').textContent = '';
   }
 }

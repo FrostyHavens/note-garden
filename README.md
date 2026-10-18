@@ -35,3 +35,9 @@ There are four lesson types:
 - `js/app.js` covers progress, the map, the lesson frame, the piano dock, grown-ups and the certificate.
 
 Progress is saved in the browser's localStorage.
+
+## Pip's voice
+
+Everything Pip says is pre-recorded with the open-source [Kokoro](https://github.com/hexgrad/kokoro) text-to-speech model (voice `af_heart`, Apache 2.0) and stored in `voice/` as small MP3s, one per sentence. If a sentence has no recording, Pip falls back to the most natural voice the browser offers.
+
+To re-record after changing any text: run `node tools/voice/catalog.mjs` to list every sentence and update `voice/manifest.js`, then run `python tools/voice/render.py . <kokoro model dir>` to record only the new sentences. That step needs `kokoro-onnx`, `soundfile` and ffmpeg.

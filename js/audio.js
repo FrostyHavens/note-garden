@@ -83,31 +83,89 @@ A.tap = () => {
   emit('onset', {t, src:'tap'});
 };
 
-/* ---------- Pip's voice ---------- */
-A.canSpeak = 'speechSynthesis' in window;
+/* ---------- Pip's voice ----------
+   Pip speaks one sentence at a time. Each sentence plays from a pre-recorded clip (voice/manifest.js maps
+   sentence -> file) when there is one, and otherwise from the most natural voice the browser offers. */
+A.canSpeak = 'speechSynthesis' in window || !!window.Audio;
 A.speechOn = true;
-let voice = null, sayId = 0;
-function pickVoice(){
-  const vs = window.speechSynthesis.getVoices();
-  voice = vs.find(v => /^en/i.test(v.lang) && /(aria|jenny|ava|zira|samantha|google us english|female)/i.test(v.name)) || vs.find(v => /^en/i.test(v.lang)) || null;
+A.missing = new Set(); // sentences spoken without a recording (for finding gaps)
+NG.VOICE_BASE = NG.VOICE_BASE || 'voice/';
+A.sentences = text => (Array.isArray(text) ? text : [text])
+  .flatMap(t => String(t || '').split(/(?<=[.!?])\s+/)).map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+
+let voice = null, sayId = 0, clip = null;
+// Ranks the device's voices: neural/natural voices first, novelty and old desktop voices last.
+function rankVoice(v){
+  if (!/^en/i.test(v.lang)) return -1;
+  const n = v.name.toLowerCase();
+  let s = 0;
+  if (/natural|neural|online/.test(n)) s += 50;
+  if (/enhanced|premium|siri/.test(n)) s += 40;
+  if (/google/.test(n)) s += 30;
+  if (/aria|jenny|ava|emma|michelle|samantha|allison|joanna|libby|sonia|serena|karen/.test(n)) s += 10;
+  if (/^en[-_]us/i.test(v.lang)) s += 5;
+  if (/david|zira|mark|hazel|desktop|espeak|fred|albert|bad news|bahh|bells|boing|bubbles|cellos|jester|organ|superstar|trinoids|whisper|wobble|zarvox|junior|ralph|kathy/.test(n)) s -= 40;
+  return s;
 }
-if (A.canSpeak){ pickVoice(); window.speechSynthesis.onvoiceschanged = pickVoice; }
+function pickVoice(){
+  const vs = window.speechSynthesis.getVoices().filter(v => rankVoice(v) >= 0);
+  voice = vs.sort((a, b) => rankVoice(b) - rankVoice(a))[0] || null;
+}
+if ('speechSynthesis' in window){ pickVoice(); window.speechSynthesis.onvoiceschanged = pickVoice; }
+A.voiceName = () => voice ? voice.name : '';
+
+function speakDevice(sentence, id){
+  return new Promise(resolve => {
+    if (!('speechSynthesis' in window) || id !== sayId) return resolve();
+    const u = new SpeechSynthesisUtterance(sentence.replace(/([A-G])♯/g, '$1 sharp').replace(/\b(an|the|note|and|to) A\b/g, '$1 Ay').replace(/\bA(?=[.!?,])/g, 'Ay'));
+    u.rate = 0.95; u.pitch = 1.05; if (voice){ u.voice = voice; u.lang = voice.lang; }
+    // Some browsers never fire onend, so a length-based timeout backs it up.
+    const est = 900 + sentence.length * 75;
+    S.speechMuteUntil = performance.now() + est + 1500;
+    let done = false;
+    const finish = () => { if (!done){ done = true; resolve(); } };
+    u.onend = u.onerror = finish;
+    setTimeout(finish, est + 1500);
+    window.speechSynthesis.speak(u);
+  });
+}
+function playClip(file, sentence, id){
+  return new Promise(resolve => {
+    if (id !== sayId) return resolve();
+    const a = new Audio(NG.VOICE_BASE + file);
+    clip = a;
+    S.speechMuteUntil = performance.now() + 20000;
+    let done = false;
+    const finish = () => { if (done) return; done = true; if (clip === a) clip = null; setTimeout(resolve, 70); };
+    a.onended = finish;
+    a.onerror = () => {
+      if (done) return; done = true; if (clip === a) clip = null;
+      if (id !== sayId) return resolve(); // interrupted by the next line, not a real failure
+      A.missing.add(sentence); speakDevice(sentence, id).then(resolve);
+    };
+    a.play().catch(() => a.onerror());
+    setTimeout(finish, 20000);
+  });
+}
 // Resolves when Pip finishes talking (right away when speech is off).
-A.say = text => new Promise(resolve => {
-  if (!A.speechOn || !A.canSpeak || !text) return resolve();
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text.replace(/♯/g, ' sharp').replace(/\b(an|the|note|and|to) A\b/g, '$1 Ay').replace(/\bA(?=[.!?,])/g, 'Ay'));
-  u.rate = 0.95; u.pitch = 1.3; if (voice) u.voice = voice;
-  // The listener stays off while Pip talks. Some browsers never fire onend, so a length-based timeout backs it up.
-  const est = 900 + text.length * 75;
-  S.speechMuteUntil = performance.now() + est;
-  let done = false; const id = ++sayId;
-  const finish = () => { if (done) return; done = true; if (id === sayId) S.speechMuteUntil = performance.now() + 250; resolve(); };
-  u.onend = u.onerror = finish;
-  setTimeout(finish, est + 1500);
-  window.speechSynthesis.speak(u);
-});
-A.hush = () => { if (A.canSpeak) window.speechSynthesis.cancel(); S.speechMuteUntil = 0; };
+A.say = async text => {
+  if (!A.speechOn || !text) return;
+  A.hush();
+  const id = ++sayId, map = NG.VOICE || {};
+  for (const s of A.sentences(text)){
+    if (id !== sayId) return;
+    const file = map[s];
+    if (file) await playClip(file, s, id);
+    else { A.missing.add(s); await speakDevice(s, id); }
+  }
+  if (id === sayId) S.speechMuteUntil = performance.now() + 250;
+};
+A.hush = () => {
+  sayId++;
+  if (clip){ clip.pause(); clip = null; }
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  S.speechMuteUntil = 0;
+};
 
 /* ---------- listening ---------- */
 // McLeod normalized square difference with first-peak picking, which avoids most octave errors.
